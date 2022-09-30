@@ -1,9 +1,10 @@
+library(readxl)
 library(dplyr)
 library(readr)
 library(purrr)
 library(curl)
 
-#### Vector with all IBGE codes for RN
+#### Vector with all IBGE codes for RN ----
 
 rn_geo_ids <-
   c(
@@ -176,20 +177,33 @@ rn_geo_ids <-
     2407252
   )
 
-### Function to get all data
+### Function to get all data ----
 
-get_incidence_table <- function(city_id, disease = "dengue"){
-url <- paste0("https://info.dengue.mat.br/api/alertcity?geocode=", city_id, "&disease=", disease,"&format=csv&ew_start=1&ew_end=53&ey_start=2022&ey_end=2022")
+get_state_table <- function(city_id, disease = "dengue") {
+  url <-
+    paste0(
+      "https://info.dengue.mat.br/api/alertcity?geocode=",
+      city_id,
+      "&disease=",
+      disease,
+      "&format=csv&ew_start=1&ew_end=53&ey_start=2022&ey_end=2022"
+    )
 
-read_csv(curl(url)) %>%
-  mutate(incidence_100k = casos_est/pop * 100000,
-         city_code = city_id) %>%
-  select(SE, incidence_100k, city_code)
+  read_csv(curl(url)) %>%
+    mutate(city_code = city_id) %>%
+    select(SE, casos_est, pop, city_code)
 }
 
+rn_epi_data <-
+  map_dfr(rn_geo_ids,
+          ~ get_state_table(city_id = .x))
 
-rn_epi_data <- map_dfr(rn_geo_ids[1:3], ~get_incidence_table(city_id=.x))
+info_rgis <- read_xls("data/regioes_geograficas_composicao_por_municipios_2017_20180911.xls")
 
-rn_epi_data %>%
-  tidyr::pivot_wider(id_cols = SE, names_from = city_code, values_from = incidence_100k) %>%
-  View()
+rn_by_rgi <- rn_epi_data %>%
+  mutate(city_code = as.character(city_code)) %>%
+  left_join(info_rgis, by = c("city_code" = "CD_GEOCODI"))
+
+saveRDS(rn_by_rgi, file = "data/dengue_all_rn_cities.rds")
+
+
