@@ -2,11 +2,14 @@
 title: "infodengue-analysis"
 ---
 
-## InfoDengue - Rio Grande do Norte
+# InfoDengue - Rio Grande do Norte
 
 ```{r}
+library(readxl)
+library(plotly)
 library(dplyr)
 library(readr)
+library(geobr)
 library(curl)
 ```
 
@@ -15,13 +18,88 @@ semanas_rn_url <- "https://info.dengue.mat.br/api/notif_reduced?state_abv=RN&cha
 info_natal_url <- "https://info.dengue.mat.br/api/alertcity?geocode=2408102&disease=dengue&format=csv&ew_start=1&ew_end=53&ey_start=2010&ey_end=2022"
 ```
 
+```{r}
+# semanas_rn <- read_csv(curl(semanas_rn_url))
+
+# info_natal <- read_csv(curl(info_natal_url))
+
+rn_total <- readRDS("data/dengue_all_rn_cities.rds")
+
+incidence_by_imrg <- rn_total %>%
+  group_by(SE, nome_rgi, cod_rgi) %>%
+  summarise(incidence_100k = (sum(casos_est) / sum(pop)) * 100000) %>%
+  ungroup()
+
+mun_mais_pop <- rn_total %>% 
+  select(nome_mun, pop) %>% 
+  distinct() %>% 
+  slice_max(order_by = pop, n = 5) %>% 
+  pull(nome_mun) %>% 
+  unique()
+
+mais_pop <- rn_total %>%
+  filter(nome_mun %in% mun_mais_pop)
+
+rn <- read_immediate_region("RN")
+
+rn_with_geodata <- rn %>%
+  mutate(code_immediate = as.character(code_immediate)) %>%
+  right_join(incidence_by_imrg, by = c("code_immediate" = "cod_rgi")) %>%
+  mutate(name = name_immediate) %>%
+  rename(geometry = geom)
+```
+
+## Casos de Dengue nas 5 cidades mais populosas do RN
 
 ```{r}
-semanas_rn <- read_csv(curl(semanas_rn_url))
+mais_pop %>%
+  mutate(incidence_100k = (casos_est / pop) * 100000) %>%
+  plot_ly(
+    x = ~ as.character(SE),
+    y = ~ incidence_100k,
+    color = ~ nome_mun,
+    text = ~ paste(
+      "<b>",
+      nome_mun,
+      "</b><br><br>",
+      "Semana Epidemiológica:",
+      as.character(SE),
+      "\n",
+      "Incidência/100k hab.:",
+      round(incidence_100k, 2)
+    ),
+    hoverinfo = "text"
+  ) %>%
+  add_lines() %>% 
+  layout(xaxis = list(title = ""), yaxis=list(title="Incidência/100k hab."))
+```
 
-info_natal <- read_csv(curl(info_natal_url))
 
+## Mapa de Incidência de Dengue nas Regiões Imediatas do RN
 
+Dados retirados da última semana epidemiológica: S. E. `r max(as.numeric(rn_with_geodata$SE)`.
+
+```{r}
+plot_ly(
+  rn_with_geodata %>% filter(SE == max(as.numeric(SE))) ,
+  split =  ~ name,
+  color = ~ incidence_100k,
+  colors = "Reds",
+  strokes = "#898989",
+  text = ~ paste(
+    "<b>",
+    name,
+    "</b><br><br>",
+    "Incidência/100k hab.:",
+    round(incidence_100k, 2)
+  ),
+  hoverinfo = "text",
+  hoveron = "fills"
+) %>%
+  layout(showlegend = FALSE) %>%
+  colorbar(title = list(text = "Incidência/100k hab."))
 
 ```
+
+Mapa na semana epidemiológica de 2022 que possuiu mais casos:
 
