@@ -10,3 +10,5 @@ com algumas visualizações.
 e salva como um binário .rds pode ser encontrado em [src/compile_RN_data.R](src/compile_RN_data.R)
 
 - O código para gerar as visualizações e o relatório HTML se encontra em [infodengue-analysis.qmd](infodengue-analysis.qmd)
+
+Todas as dependências usadas nesse projeto são gerenciadas pelo [renv](https://rstudio.github.io/renv/articles/renv.html).
