@@ -1,5 +1,8 @@
 ---
 title: "InfoDengue - Rio Grande do Norte"
+lang: pt
+date: today
+date-format: long
 format:
   html:
     toc: true
@@ -113,7 +116,6 @@ mais_pop %>%
 
 Dados retirados da última semana epidemiológica: S. E. `r as.character(max(as.numeric(rn_with_geodata$SE)))`.
 
-
 ```{r, warning=FALSE, message=FALSE}
 plotar_mapa_rgi(rn_with_geodata %>% filter(SE == max(as.numeric(SE))))
 ```
@@ -126,4 +128,3 @@ Mapa na semana epidemiológica de 2022 que possuiu mais casos (S.E. `r as.charac
 
 plotar_mapa_rgi(rn_with_geodata %>% filter(SE == semana_mais_casos))
 ```
-
