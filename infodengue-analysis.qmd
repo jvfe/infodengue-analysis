@@ -1,35 +1,31 @@
 ---
-title: "infodengue-analysis"
+title: "InfoDengue - Rio Grande do Norte"
+format:
+  html:
+    toc: true
 ---
 
-# InfoDengue - Rio Grande do Norte
-
-```{r}
+```{r, warning=FALSE, message=FALSE}
 library(readxl)
 library(plotly)
 library(dplyr)
 library(readr)
 library(geobr)
-library(curl)
 ```
 
-```{r}
-semanas_rn_url <- "https://info.dengue.mat.br/api/notif_reduced?state_abv=RN&chart_type=epiyears&disease=dengue"
-info_natal_url <- "https://info.dengue.mat.br/api/alertcity?geocode=2408102&disease=dengue&format=csv&ew_start=1&ew_end=53&ey_start=2010&ey_end=2022"
-```
+## ETL
 
-```{r}
-# semanas_rn <- read_csv(curl(semanas_rn_url))
-
-# info_natal <- read_csv(curl(info_natal_url))
-
+```{r, warning=FALSE, message=FALSE}
+# Dado gerado pelo src/compile_RN_data.R
 rn_total <- readRDS("data/dengue_all_rn_cities.rds")
 
+# Incidência de Dengue nas regiões imediatas do RN
 incidence_by_imrg <- rn_total %>%
   group_by(SE, nome_rgi, cod_rgi) %>%
   summarise(incidence_100k = (sum(casos_est) / sum(pop)) * 100000) %>%
   ungroup()
 
+# 5 municípios mais populosos do RN
 mun_mais_pop <- rn_total %>% 
   select(nome_mun, pop) %>% 
   distinct() %>% 
@@ -37,16 +33,52 @@ mun_mais_pop <- rn_total %>%
   pull(nome_mun) %>% 
   unique()
 
+# Casos nos municípios mais populosos
 mais_pop <- rn_total %>%
   filter(nome_mun %in% mun_mais_pop)
 
-rn <- read_immediate_region("RN")
+# Semana com mais casos
+semana_mais_casos <- rn_total %>% 
+  group_by(SE) %>% 
+  summarise(sum_casos = sum(casos_est)) %>% 
+  ungroup() %>% 
+  slice_max(order_by = sum_casos, n = 1) %>% 
+  pull(SE)
+
+# Adquirindo shapefile do RN
+rn <- read_immediate_region("RN", year = 2019, showProgress = FALSE)
 
 rn_with_geodata <- rn %>%
   mutate(code_immediate = as.character(code_immediate)) %>%
   right_join(incidence_by_imrg, by = c("code_immediate" = "cod_rgi")) %>%
   mutate(name = name_immediate) %>%
   rename(geometry = geom)
+
+#' Plotar mapa de incidência nas regiões imediatas
+#'
+#' @param dados Dataframe contendo incidência e os polígonos da região
+#'
+#' @return Gráfico interativo
+plotar_mapa_rgi <- function(dados) {
+  plot_ly(
+  dados,
+  split =  ~ name,
+  color = ~ incidence_100k,
+  colors = "Reds",
+  strokes = "#898989",
+  text = ~ paste(
+    "<b>",
+    name,
+    "</b><br><br>",
+    "Incidência/100k hab.:",
+    round(incidence_100k, 2)
+  ),
+  hoverinfo = "text",
+  hoveron = "fills"
+) %>%
+  layout(showlegend = FALSE) %>%
+  colorbar(title = list(text = "Incidência/100k hab."))
+}
 ```
 
 ## Casos de Dengue nas 5 cidades mais populosas do RN
@@ -70,36 +102,28 @@ mais_pop %>%
     ),
     hoverinfo = "text"
   ) %>%
-  add_lines() %>% 
-  layout(xaxis = list(title = ""), yaxis=list(title="Incidência/100k hab."))
+  add_lines() %>%
+  layout(xaxis = list(title = "", nticks=8, tickangle=45),
+         yaxis = list(title = "Incidência/100k hab."))
 ```
-
 
 ## Mapa de Incidência de Dengue nas Regiões Imediatas do RN
 
-Dados retirados da última semana epidemiológica: S. E. `r max(as.numeric(rn_with_geodata$SE)`.
+### Última semana epidemiológica
 
-```{r}
-plot_ly(
-  rn_with_geodata %>% filter(SE == max(as.numeric(SE))) ,
-  split =  ~ name,
-  color = ~ incidence_100k,
-  colors = "Reds",
-  strokes = "#898989",
-  text = ~ paste(
-    "<b>",
-    name,
-    "</b><br><br>",
-    "Incidência/100k hab.:",
-    round(incidence_100k, 2)
-  ),
-  hoverinfo = "text",
-  hoveron = "fills"
-) %>%
-  layout(showlegend = FALSE) %>%
-  colorbar(title = list(text = "Incidência/100k hab."))
+Dados retirados da última semana epidemiológica: S. E. `r as.character(max(as.numeric(rn_with_geodata$SE)))`.
 
+
+```{r, warning=FALSE, message=FALSE}
+plotar_mapa_rgi(rn_with_geodata %>% filter(SE == max(as.numeric(SE))))
 ```
 
-Mapa na semana epidemiológica de 2022 que possuiu mais casos:
+### Semana epidemiológica com mais casos
+
+Mapa na semana epidemiológica de 2022 que possuiu mais casos (S.E. `r as.character(semana_mais_casos)`):
+
+```{r, warning=FALSE, message=FALSE}
+
+plotar_mapa_rgi(rn_with_geodata %>% filter(SE == semana_mais_casos))
+```
 
